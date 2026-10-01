@@ -1,5 +1,7 @@
-// Headless browser smoke test: serves the production build and checks the app starts cleanly.
+// Headless browser smoke test: serves the production build and checks the app runs.
 // Requires `npm run build` first. Set CHROME_PATH if Chrome is not in a standard location.
+// SMOKE_NO_WEBGPU=1 hides WebGPU to exercise the WebGL2 fallback.
+// SMOKE_SCREENSHOT=path saves a screenshot after entering.
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
@@ -24,6 +26,8 @@ const server = spawn(
   { stdio: 'ignore' },
 );
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function waitForServer() {
   for (let i = 0; i < 50; i++) {
     try {
@@ -31,26 +35,31 @@ async function waitForServer() {
     } catch {
       // not up yet
     }
-    await new Promise((r) => setTimeout(r, 200));
+    await sleep(200);
   }
   throw new Error('preview server did not start');
 }
 
-let failed = false;
+const failures = [];
+const check = (ok, label) => {
+  console.log(`smoke: ${ok ? 'ok  ' : 'FAIL'} ${label}`);
+  if (!ok) failures.push(label);
+};
+
 const browser = await puppeteer.launch({
   executablePath,
   headless: true,
-  args: ['--enable-unsafe-webgpu', '--use-angle=d3d11'],
+  args: ['--enable-unsafe-webgpu', '--use-angle=d3d11', '--window-size=1280,720'],
+  defaultViewport: { width: 1280, height: 720 },
 });
 try {
   await waitForServer();
   const page = await browser.newPage();
   const errors = [];
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
-  page.on('response', (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
   page.on('pageerror', (e) => errors.push(e.message));
+  page.on('response', (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
 
-  // SMOKE_NO_WEBGPU=1 hides WebGPU from the page to exercise the automatic WebGL2 fallback.
   if (process.env.SMOKE_NO_WEBGPU) {
     await page.evaluateOnNewDocument(() => {
       delete Object.getPrototypeOf(navigator).gpu;
@@ -58,21 +67,51 @@ try {
   }
 
   await page.goto(URL, { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__foundation, { timeout: 15000 });
-  const result = await page.evaluate(() => window.__foundation);
+  await page.waitForFunction(() => window.__house?.status !== 'starting', { timeout: 20000 });
+  const state = await page.evaluate(() => ({
+    status: window.__house.status,
+    renderer: window.__house.renderer,
+    physics: window.__house.physics,
+    error: window.__house.error,
+  }));
+  console.log('smoke:', JSON.stringify(state));
+  check(state.status === 'ready', 'app reaches ready state');
 
-  console.log('smoke:', JSON.stringify(result));
-  if (result.error || result.physics === 'failed') failed = true;
-  if (errors.length) {
-    console.error('smoke: console errors:\n  ' + errors.join('\n  '));
-    failed = true;
+  const f0 = await page.evaluate(() => window.__house.frames());
+  await sleep(1000);
+  const f1 = await page.evaluate(() => window.__house.frames());
+  console.log(`smoke: ${f1 - f0} frames in 1 s (headless; not a performance figure)`);
+  check(f1 - f0 > 5, 'frames are rendering');
+
+  // Enter: click the start screen, which requests pointer lock.
+  await page.mouse.click(640, 360);
+  await sleep(300);
+  const locked = await page.evaluate(() => window.__house.locked());
+  if (locked) {
+    const before = await page.evaluate(() => window.__house.feet());
+    await page.keyboard.down('KeyW');
+    await sleep(1000);
+    await page.keyboard.up('KeyW');
+    const after = await page.evaluate(() => window.__house.feet());
+    const moved = Math.hypot(after.x - before.x, after.z - before.z);
+    console.log(`smoke: moved ${moved.toFixed(2)} m holding W for ~1 s`);
+    check(moved > 0.5 && moved < 3, 'keyboard movement works');
+  } else {
+    console.log('smoke: skip pointer lock not granted in headless; movement covered by unit tests');
   }
+
+  if (process.env.SMOKE_SCREENSHOT) {
+    await page.screenshot({ path: process.env.SMOKE_SCREENSHOT });
+    console.log(`smoke: screenshot saved to ${process.env.SMOKE_SCREENSHOT}`);
+  }
+
+  check(errors.length === 0, 'no console or network errors');
+  if (errors.length) console.error('  ' + errors.join('\n  '));
 } catch (err) {
-  console.error('smoke:', err.message);
-  failed = true;
+  check(false, `unexpected: ${err.message}`);
 } finally {
   await browser.close();
   server.kill();
 }
-console.log(failed ? 'smoke: FAIL' : 'smoke: PASS');
-process.exit(failed ? 1 : 0);
+console.log(failures.length ? 'smoke: FAIL' : 'smoke: PASS');
+process.exit(failures.length ? 1 : 0);

@@ -14,28 +14,64 @@
         margin: 0;
         height: 100%;
         background: #000;
-        color: #d8d2c4;
         overflow: hidden;
-        font-family: Georgia, 'Times New Roman', serif;
       }
       #app {
         position: fixed;
         inset: 0;
       }
-      #status {
+      #start {
         position: fixed;
-        left: 12px;
-        bottom: 12px;
-        font:
-          12px ui-monospace,
-          monospace;
-        opacity: 0.6;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #000;
+        color: #d8d2c4;
+        font-family: Georgia, 'Times New Roman', serif;
+        cursor: pointer;
+        user-select: none;
+        transition: opacity 0.8s ease;
+      }
+      #start h1 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: normal;
+        letter-spacing: 0.35em;
+      }
+      #start p {
+        margin: 0;
+        font-size: 11px;
+        letter-spacing: 0.2em;
+        opacity: 0.45;
+      }
+      #start.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #dot {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        width: 3px;
+        height: 3px;
+        margin: -1.5px 0 0 -1.5px;
+        border-radius: 50%;
+        background: #d8d2c4;
+        opacity: 0.45;
+        pointer-events: none;
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
-    <div id="status">starting</div>
+    <div id="dot"></div>
+    <div id="start">
+      <h1>THE ENDLESS HOUSE</h1>
+      <p>click to enter</p>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
