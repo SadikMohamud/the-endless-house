@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+*.log
+.DS_Store
+.vercel
+
+# Secrets never enter this public repository.
+.env
+.env.*
+!.env.example
