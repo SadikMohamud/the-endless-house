@@ -26,7 +26,9 @@ Status: **Milestone 1 complete** (one House, one door, one private procedural wo
 - Zod for every domain record and world plan
 - Vitest for unit tests, puppeteer-core for browser checks
 
-No backend, database or AI service is required. Everything runs in the browser.
+No backend, database or AI service is required: everything runs in the browser. An optional House
+server (`server/`, Hono) makes journeys and private worlds server-owned; see
+[docs/BACKEND.md](docs/BACKEND.md).
 
 ## Commands
 
@@ -44,6 +46,8 @@ Requires Node 22 or later and npm.
 | `npm run format` / `format:check` | Prettier                                                                                                                                           |
 | `npm run smoke`                   | Headless Chrome walk-through of the built app: two full journeys, budgets, no errors (run `build` first; set `CHROME_PATH` if Chrome is elsewhere) |
 | `npm run perf`                    | Frame-rate benchmark in a real Chrome window (run `build` first; use mains power)                                                                  |
+| `npm run server`                  | House server on http://localhost:8787 (see docs/BACKEND.md)                                                                                        |
+| `npm run smoke:remote`            | Full walk-through against a real local House server                                                                                                |
 | `npm run check`                   | Typecheck, lint, format, tests, build and smoke, in order                                                                                          |
 
 ## Layout
@@ -58,6 +62,7 @@ Requires Node 22 or later and npm.
 | `src/stages`  | House and forest stages (rendering + physics)                                                  |
 | `src/world`   | Forest colliders and frame crossing                                                            |
 | `src/ui`      | Diagnostics overlay                                                                            |
+| `server`      | Optional House server: sessions, server-owned journeys and private worlds                      |
 
 ## Rules
 
@@ -70,6 +75,7 @@ Requires Node 22 or later and npm.
 - [Experience brief](docs/EXPERIENCE_BRIEF.md): what the House should feel like.
 - [Determinism](docs/DETERMINISM.md): seed derivation, what reproduces and what does not.
 - [Milestone 1](docs/MILESTONE-1.md): acceptance tests, performance budget, known limitations.
+- [Backend](docs/BACKEND.md): the House server, security model, hosting options.
 
 ## Reproducing a world
 

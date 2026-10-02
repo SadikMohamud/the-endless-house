@@ -75,6 +75,11 @@ export class ForestStage implements Stage {
     this.frameUpdate();
   }
 
+  /** Re-arms the frame after a return attempt that could not be completed. */
+  allowReturn(): void {
+    this.returned = false;
+  }
+
   look(deltaYaw: number, deltaPitch: number): void {
     this.player.look(deltaYaw, deltaPitch);
   }

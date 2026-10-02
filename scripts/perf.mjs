@@ -7,6 +7,16 @@ import puppeteer from 'puppeteer-core';
 const BASE = 'http://localhost:4173/';
 const BUDGET = { minFps: 55, maxP95Ms: 25, maxCpuMs: 8 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Refuse to run against a stray server: it would serve whatever it was started with.
+try {
+  await fetch(BASE);
+  console.error('perf: something is already serving port 4173; stop it first.');
+  process.exit(1);
+} catch {
+  // port is free
+}
+
 const server = spawn(
   process.execPath,
   ['node_modules/vite/bin/vite.js', 'preview', '--port', '4173', '--strictPort'],

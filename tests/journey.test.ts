@@ -40,8 +40,9 @@ describe('AT-08: transition integrity', () => {
 
     const { worldId, seeds } = j.openDoor('door-1', 'door-room');
     expect(j.journey.location).toEqual({ kind: 'TRANSITION', doorId: 'door-1', to: 'WORLD' });
-    expect(worldId).toMatch(/^w-[0-9a-f]{16}$/);
-    expect(seeds.worldSeed.startsWith(worldId.slice(2))).toBe(true);
+    expect(worldId).toMatch(/^w-[0-9a-f]{20}$/);
+    // The world id must not reveal any part of the seed.
+    expect(seeds.worldSeed).not.toContain(worldId.slice(2, 10));
 
     j.enterWorld(worldId);
     expect(j.journey.location).toEqual({ kind: 'WORLD', worldId });
@@ -117,6 +118,26 @@ describe('AT-08: transition integrity', () => {
     expect(a.peekDoor('door-1', 'door-room').worldSeed).not.toBe(
       b.peekDoor('door-1', 'door-room').worldSeed,
     );
+  });
+
+  it('survives a snapshot and restore mid-journey', () => {
+    const j = newJourney();
+    roundTrip(j);
+    j.moveToRoom('door-room');
+    const { worldId } = j.openDoor('door-1', 'door-room');
+    const restored = JourneyEngine.restore(JSON.parse(JSON.stringify(j.snapshot())));
+    expect(restored.journey).toEqual(j.journey);
+    restored.enterWorld(worldId); // the pending world survived
+    // Visit counts survived: the next world differs from both earlier ones.
+    restored.leaveWorld('return-frame');
+    restored.enterHouse('door-room');
+    expect(restored.openDoor('door-1', 'door-room').worldId).not.toBe(worldId);
+  });
+
+  it('the public view hides the journey seed', () => {
+    const j = newJourney('very-private-seed');
+    expect(JSON.stringify(j.publicJourney)).not.toContain('very-private-seed');
+    expect(j.publicJourney.journeyId).toBe('j-1');
   });
 
   it('peeking at a door changes nothing', () => {

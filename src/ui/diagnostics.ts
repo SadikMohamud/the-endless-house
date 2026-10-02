@@ -21,11 +21,14 @@ export interface DiagnosticsSnapshot {
   /** Chrome-only JS heap figure; null where the browser does not expose it. */
   jsHeapMb: number | null;
   online: boolean;
+  /** Where journey authority lives: local, server, or local because the server failed. */
+  journeyMode: string;
+  lastFailure: string | null;
   transitionGraph: string;
 }
 
 /** The journey as a path of places: start-room → door-1 → w-… → return-frame → corridor. */
-export function transitionGraph(journey: Journey | null, maxSteps = 9): string {
+export function transitionGraph(journey: Pick<Journey, 'history'> | null, maxSteps = 9): string {
   if (!journey) return '(no journey)';
   const steps: string[] = [];
   for (const e of journey.history) {
@@ -56,7 +59,8 @@ export function formatDiagnostics(s: DiagnosticsSnapshot): string {
     `${pad('assets')}${a.geometries} geometries  ${a.textures} textures`,
     `${pad('draw')}${a.drawCalls} calls  ${a.triangles.toLocaleString('en-GB')} triangles`,
     `${pad('memory')}${s.jsHeapMb === null ? 'n/a' : `${fixed(s.jsHeapMb, 0)} MB JS heap`}`,
-    `${pad('network')}${s.online ? 'online' : 'offline'} (not required)`,
+    `${pad('network')}${s.online ? 'online' : 'offline'}, journey ${s.journeyMode}`,
+    ...(s.lastFailure ? [`${pad('failure')}${s.lastFailure}`] : []),
     `${pad('path')}${s.transitionGraph}`,
   ].join('\n');
 }

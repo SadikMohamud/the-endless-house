@@ -1,8 +1,10 @@
-import { DEFAULT_HOUSE_DNA, type Journey } from './domain';
-import { buildDestination } from './journey/destination';
-import { JourneyEngine } from './journey/engine';
-import { Experience } from './journey/experience';
+import { DEFAULT_HOUSE_DNA } from './domain';
+import { planWorld } from './gen/planner';
 import { seedsFromWorldSeed } from './gen/seeds';
+import { buildDestination } from './journey/destination';
+import { JourneyEngine, type PublicJourney } from './journey/engine';
+import { Experience } from './journey/experience';
+import { LocalJourneyService, RemoteJourneyService, type JourneyService } from './journey/service';
 import { loadPhysics } from './platform/physics';
 import { Engine } from './runtime/engine';
 import { Input } from './runtime/input';
@@ -25,7 +27,7 @@ interface HouseState {
   inReach: () => boolean;
   doorState: () => string | null;
   phase: () => string;
-  journey: () => Journey | null;
+  journey: () => PublicJourney | null;
   gpuMemory: () => { geometries: number; textures: number } | null;
   diagnostics: () => DiagnosticsSnapshot | null;
   diagnosticsVisible: () => boolean;
@@ -57,6 +59,34 @@ function randomSeed(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Message shown in diagnostics when the House server was configured but not reachable. */
+let journeyFallbackReason: string | null = null;
+
+/**
+ * The House server is used only when VITE_API_URL is set at build time. If it cannot be reached,
+ * the House still opens, with the journey kept in this browser.
+ */
+async function openJourney(): Promise<JourneyService> {
+  const api = import.meta.env.VITE_API_URL as string | undefined;
+  if (api) {
+    try {
+      return await RemoteJourneyService.connect(api);
+    } catch (err) {
+      journeyFallbackReason = err instanceof Error ? err.message : String(err);
+      console.warn(`House server unreachable (${journeyFallbackReason}); journey kept locally.`);
+    }
+  }
+  const engine = new JourneyEngine({
+    journeyId: crypto.randomUUID(),
+    visitorId: 'local-visitor',
+    houseId: HOUSE_ID,
+    houseSeed: HOUSE_SEED,
+    journeySeed: randomSeed(),
+    roomId: 'start-room',
+  });
+  return new LocalJourneyService(engine, planWorld);
+}
+
 async function boot(): Promise<void> {
   const rapier = await loadPhysics();
   const input = new Input(app);
@@ -81,18 +111,16 @@ async function boot(): Promise<void> {
     devForest = new ForestStage(rapier, d.reality, d.forest, DEFAULT_HOUSE_DNA);
     engine.setStage(devForest);
   } else {
-    const journey = new JourneyEngine({
-      journeyId: crypto.randomUUID(),
-      visitorId: 'local-visitor',
-      houseId: HOUSE_ID,
-      houseSeed: HOUSE_SEED,
-      journeySeed: randomSeed(),
-      roomId: 'start-room',
-    });
-    experience = new Experience(rapier, engine, DEFAULT_HOUSE_DNA, HOUSE_SEED, journey, {
-      haze,
-      setFocus,
-    });
+    const journey = await openJourney();
+    experience = await Experience.create(
+      rapier,
+      engine,
+      DEFAULT_HOUSE_DNA,
+      HOUSE_SEED,
+      journey,
+      { haze, setFocus },
+      planWorld,
+    );
   }
   engine.start();
 
@@ -132,6 +160,14 @@ async function boot(): Promise<void> {
       cpuMs: engine.stats.cpuMs,
       jsHeapMb: heap ? heap.usedJSHeapSize / 1048576 : null,
       online: navigator.onLine,
+      journeyMode: experience
+        ? experience.journey.mode === 'remote'
+          ? 'server'
+          : journeyFallbackReason
+            ? `local (server unreachable: ${journeyFallbackReason})`
+            : 'local'
+        : 'dev-world',
+      lastFailure: experience?.lastFailure ?? null,
       transitionGraph: transitionGraph(j),
     };
   };

@@ -1,7 +1,21 @@
-import { Journey, type JourneyEvent, type SeedSet } from '../domain';
+import { z } from 'zod';
+import { Id, Journey, Seed, type JourneyEvent, type SeedSet } from '../domain';
+import { deriveSeed } from '../gen/rng';
 import { deriveDoorSeeds } from '../gen/seeds';
 
 export class JourneyError extends Error {}
+
+/** Everything needed to resume a journey later (server storage). Contains private seeds. */
+export const JourneySnapshot = z.strictObject({
+  journey: Journey,
+  houseSeed: Seed,
+  doorVisits: z.record(Id, z.number().int().min(0)),
+  pendingWorldId: Id.nullable(),
+});
+export type JourneySnapshot = z.infer<typeof JourneySnapshot>;
+
+/** A journey as it may be shown to its owner's browser: without the journey seed. */
+export type PublicJourney = Omit<Journey, 'seed'>;
 
 export interface JourneyStart {
   journeyId: string;
@@ -49,9 +63,42 @@ export class JourneyEngine {
     });
   }
 
-  /** A read-only snapshot. */
+  /** Rebuilds an engine from a stored snapshot, validating it first. */
+  static restore(snapshot: JourneySnapshot): JourneyEngine {
+    const s = JourneySnapshot.parse(snapshot);
+    const engine = new JourneyEngine({
+      journeyId: s.journey.journeyId,
+      visitorId: s.journey.visitorId,
+      houseId: s.journey.houseId,
+      houseSeed: s.houseSeed,
+      journeySeed: s.journey.seed,
+      roomId: 'start-room',
+    });
+    engine.state = s.journey;
+    for (const [door, visits] of Object.entries(s.doorVisits)) engine.doorVisits.set(door, visits);
+    engine.pendingWorldId = s.pendingWorldId;
+    return engine;
+  }
+
+  /** A read-only copy, including the journey seed. Never send this to another party. */
   get journey(): Readonly<Journey> {
     return structuredClone(this.state);
+  }
+
+  /** The journey without its seed, safe to return to the owning visitor. */
+  get publicJourney(): PublicJourney {
+    const { seed: _seed, ...rest } = structuredClone(this.state);
+    void _seed;
+    return rest;
+  }
+
+  snapshot(): JourneySnapshot {
+    return {
+      journey: structuredClone(this.state),
+      houseSeed: this.houseSeed,
+      doorVisits: Object.fromEntries(this.doorVisits),
+      pendingWorldId: this.pendingWorldId,
+    };
   }
 
   /** Seeds the door would lead to if opened now. Changes nothing. */
@@ -82,7 +129,8 @@ export class JourneyEngine {
     if (loc.kind !== 'HOUSE') throw new JourneyError(`cannot open a House door from ${loc.kind}`);
     if (loc.roomId !== roomId) throw new JourneyError(`door ${doorId} is not in ${loc.roomId}`);
     const seeds = this.peekDoor(doorId, roomId);
-    const worldId = `w-${seeds.worldSeed.slice(0, 16)}`;
+    // A one-way hash: knowing a world id must not reveal any part of its seed.
+    const worldId = `w-${deriveSeed(seeds.worldSeed, 'world-id').slice(0, 20)}`;
     this.commit(
       { location: { kind: 'TRANSITION', doorId, to: 'WORLD' } },
       { type: 'DOOR_OPENED', doorId },

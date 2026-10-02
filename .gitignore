@@ -1,6 +1,10 @@
 node_modules
 dist
+dist-remote
 coverage
+*.db
+*.db-wal
+*.db-shm
 *.log
 .DS_Store
 .vercel

@@ -26,6 +26,8 @@ const snapshot = (overrides: Partial<DiagnosticsSnapshot> = {}): DiagnosticsSnap
   cpuMs: 1.23,
   jsHeapMb: null,
   online: false,
+  journeyMode: 'local',
+  lastFailure: null,
   transitionGraph: 'start-room → door-1 → w-0123456789abcdef',
   ...overrides,
 });
@@ -44,12 +46,18 @@ describe('diagnostics overlay', () => {
       'fps        60',
       '14 geometries',
       '9 calls',
-      'offline (not required)',
+      'offline, journey local',
       'n/a',
       'start-room → door-1',
     ]) {
       expect(text).toContain(expected);
     }
+  });
+
+  it('shows the last failure only when there is one', () => {
+    expect(formatDiagnostics(snapshot())).not.toContain('failure');
+    const text = formatDiagnostics(snapshot({ lastFailure: 'door did not open: HTTP 503' }));
+    expect(text).toContain('failure    door did not open: HTTP 503');
   });
 
   it('builds the transition graph from the journey history', () => {

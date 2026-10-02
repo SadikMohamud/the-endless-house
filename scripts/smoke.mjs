@@ -20,9 +20,26 @@ if (!executablePath) {
   process.exit(1);
 }
 
+// Refuse to run against a stray server: it would serve whatever it was started with.
+try {
+  await fetch(URL);
+  console.error('smoke: something is already serving port 4173; stop it first.');
+  process.exit(1);
+} catch {
+  // port is free
+}
+
 const server = spawn(
   process.execPath,
-  ['node_modules/vite/bin/vite.js', 'preview', '--port', '4173', '--strictPort'],
+  [
+    'node_modules/vite/bin/vite.js',
+    'preview',
+    '--port',
+    '4173',
+    '--strictPort',
+    '--outDir',
+    process.env.SMOKE_OUT_DIR ?? 'dist',
+  ],
   { stdio: 'ignore' },
 );
 
@@ -179,6 +196,10 @@ try {
       j.location.kind === 'WORLD' && j.location.worldId === j.worldId,
       'trip 1: journey is in the world',
     );
+    const mode = (await page.evaluate(() => window.__house.diagnostics())).journeyMode;
+    const expectMode = process.env.SMOKE_EXPECT_JOURNEY ?? 'local';
+    check(mode === expectMode, `journey authority is ${expectMode} (got: ${mode})`);
+    check(!('seed' in j), 'the browser never holds the journey seed');
     await shot('6-trip1-world');
     const memory1 = await returnHome('trip 1');
     await shot('7-trip1-home');

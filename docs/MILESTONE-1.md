@@ -17,7 +17,7 @@ Status as of 2 October 2026, commit after Phase 8.
 | AT-09 Physics profile | **Pass** | `tests/physics-profiles.test.ts`: the same 4 m/s jump measures apex 0.849 m / airtime 0.833 s under EARTH (theory 0.815 m / 0.815 s) and 3.07 m / 3.13 s under LOW_GRAVITY (theory 3.20 m / 3.20 s). |
 | AT-10 AI independence | **Pass** | No AI exists in the codebase. `tests/journey.test.ts` generates a world with `fetch` stubbed to throw. |
 | AT-11 Resource cleanup | **Pass** | `tests/cleanup.test.ts`: every geometry, material, light shadow map and instance buffer is disposed, and the physics world freed. Smoke: GPU memory identical after round trips 1 and 2 (70 geometries, 5 textures, 2 render targets). |
-| AT-12 Private-world isolation | **Not applicable yet; blocking** | Milestone 1 is single-user with no backend, so there is nothing to isolate. **This test must pass before any multi-user private-world release** (Phase 9). |
+| AT-12 Private-world isolation | **Pass (Phase 9)** | Milestone 1 itself was single-user. Phase 9 added the House server; `tests/server.test.ts` attacks it with modified, guessed and injection-shaped ids, tampered, forged, crossed, expired and revoked tokens, and missing auth, against both stores. A deliberate removal of the journey ownership check made these tests fail. `npm run smoke:remote` runs the full walk-through against the real server. WebSockets: none exist yet (Phase 23). |
 | AT-13 Build and tests | **Pass** | `npm run check` (typecheck, lint, format, 95 unit tests, build, smoke) exits 0. A fresh clone passes `npm ci && npm run check`. |
 
 ## Performance budget
@@ -27,17 +27,16 @@ Test device: Intel Core 5 210H laptop, 16 GB RAM. Chrome renders on the **Intel 
 
 | Measure | Budget | House | Forest | Checked by |
 |---|---|---|---|---|
-| Frame rate (headed Chrome) | ≥ 55 fps | **Pending** (60.0 and 35.1 on battery) | **Pending** (33.2 and 30.0 on battery) | `npm run perf` |
-| p95 frame time | ≤ 25 ms | **Pending** (17.2 on battery) | **Pending** | `npm run perf` |
+| Frame rate (headed Chrome) | ≥ 55 fps | **134 fps** | **137 fps** | `npm run perf` |
+| p95 frame time | ≤ 25 ms | **13.9 ms** | **13.8 ms** | `npm run perf` |
 | CPU per frame | ≤ 8 ms | 2.6 to 4.2 ms | 2.5 to 3.4 ms | smoke, perf |
 | Draw calls | House ≤ 200, forest ≤ 40 | 78 to 93 | 9 | smoke |
 | Triangles | House ≤ 200k, forest ≤ 1.5M | about 1.5k | about 69k | smoke |
 | Generation time | none set | n/a | about 20 ms | unit test |
 
-**Frame-rate measurements are not yet valid.** They were taken with the laptop on battery at 13%,
-where Windows battery saver and Chrome's Energy Saver cap the frame rate (observed: a hard 30.0 fps
-in both scenes, and the House alternating between 60 and 35 fps with no code change). The forest
-must be re-measured with `npm run perf` on mains power before its fps budget can be called met.
+Frame rates were measured on mains power (laptop at 93%, charging), on the integrated GPU, with
+no frame cap. Earlier runs on battery at 13% showed a hard 30 fps in both scenes: Windows battery
+saver and Chrome's Energy Saver cap the frame rate, so **always benchmark on mains power**.
 
 Headless Chrome throttles its own frame rate, so `npm run smoke` never budgets fps; `npm run perf`
 opens a real window for that.
@@ -54,7 +53,6 @@ it. Press backtick for diagnostics.
 
 ## Known limitations
 
-- Frame-rate budgets for both scenes await a mains-power measurement (above).
 - Rapier's character controller occasionally shortens a step on flat ground: walking covers 95 to
   100% of the profile speed in distance; velocity is exact.
 - Gravity must point straight down; directional gravity is rejected by validation until supported.
@@ -66,5 +64,5 @@ it. Press backtick for diagnostics.
 
 ## Gate
 
-AT-01 to AT-11 and AT-13 pass. AT-12 is recorded as blocking the first multi-user release. The
-remaining open items are the fps measurement on mains power and a human playthrough.
+AT-01 to AT-13 pass (AT-12 from Phase 9 onwards). Performance budgets are met on mains power.
+The one remaining open item is a hands-on playthrough by a person.
