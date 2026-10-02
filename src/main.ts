@@ -1,7 +1,8 @@
+import { DEFAULT_HOUSE_DNA } from './domain';
 import { loadPhysics } from './platform/physics';
 import { Engine } from './runtime/engine';
 import { Input } from './runtime/input';
-import { TestRoomStage } from './stages/test-room';
+import { HouseStage } from './stages/house-stage';
 
 /** Read-only runtime state for automated checks. Phase 8 replaces this with proper diagnostics. */
 interface HouseState {
@@ -12,6 +13,8 @@ interface HouseState {
   frames: () => number;
   feet: () => { x: number; y: number; z: number } | null;
   locked: () => boolean;
+  inReach: () => boolean;
+  doorState: () => string | null;
 }
 
 declare global {
@@ -22,6 +25,8 @@ declare global {
 
 const app = document.getElementById('app')!;
 const start = document.getElementById('start')!;
+const dot = document.getElementById('dot')!;
+const glyph = document.getElementById('glyph')!;
 
 async function boot(): Promise<void> {
   const rapier = await loadPhysics();
@@ -29,7 +34,13 @@ async function boot(): Promise<void> {
   const engine = new Engine(app, input);
   await engine.init();
 
-  const stage = new TestRoomStage(rapier);
+  const setFocus = (on: boolean) => {
+    dot.classList.toggle('focus', on);
+    glyph.classList.toggle('focus', on);
+  };
+  const stage = new HouseStage(rapier, DEFAULT_HOUSE_DNA, 'house-seed-1', {
+    onFocusChange: setFocus,
+  });
   engine.setStage(stage);
   engine.start();
 
@@ -44,10 +55,19 @@ async function boot(): Promise<void> {
     frames: () => engine.frames,
     feet: () => stage.player.feet,
     locked: () => input.isLocked,
+    inReach: () => stage.inReach,
+    doorState: () => stage.doorState,
   };
 }
 
-window.__house = { status: 'starting', frames: () => 0, feet: () => null, locked: () => false };
+window.__house = {
+  status: 'starting',
+  frames: () => 0,
+  feet: () => null,
+  locked: () => false,
+  inReach: () => false,
+  doorState: () => null,
+};
 boot().catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
   window.__house = { ...window.__house!, status: 'error', error: message };

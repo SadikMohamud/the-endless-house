@@ -1,7 +1,7 @@
-// Headless browser smoke test: serves the production build and checks the app runs.
+﻿// Headless browser smoke test: serves the production build and checks the app runs.
 // Requires `npm run build` first. Set CHROME_PATH if Chrome is not in a standard location.
 // SMOKE_NO_WEBGPU=1 hides WebGPU to exercise the WebGL2 fallback.
-// SMOKE_SCREENSHOT=path saves a screenshot after entering.
+// SMOKE_SHOTS=dir saves screenshots along the walk.
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
@@ -87,22 +87,43 @@ try {
   await page.mouse.click(640, 360);
   await sleep(300);
   const locked = await page.evaluate(() => window.__house.locked());
+  const shot = async (name) => {
+    if (!process.env.SMOKE_SHOTS) return;
+    const path = `${process.env.SMOKE_SHOTS}/${name}.png`;
+    await page.screenshot({ path });
+    console.log(`smoke: screenshot ${path}`);
+  };
+
   if (locked) {
+    await sleep(1000); // let the start screen finish fading
+    await shot('1-start');
     const before = await page.evaluate(() => window.__house.feet());
     await page.keyboard.down('KeyW');
     await sleep(1000);
-    await page.keyboard.up('KeyW');
     const after = await page.evaluate(() => window.__house.feet());
     const moved = Math.hypot(after.x - before.x, after.z - before.z);
     console.log(`smoke: moved ${moved.toFixed(2)} m holding W for ~1 s`);
     check(moved > 0.5 && moved < 3, 'keyboard movement works');
-  } else {
-    console.log('smoke: skip pointer lock not granted in headless; movement covered by unit tests');
-  }
 
-  if (process.env.SMOKE_SCREENSHOT) {
-    await page.screenshot({ path: process.env.SMOKE_SCREENSHOT });
-    console.log(`smoke: screenshot saved to ${process.env.SMOKE_SCREENSHOT}`);
+    // Keep walking: through the corridor to the door (about 32 m at 1.5 m/s).
+    await sleep(10000);
+    await shot('2-corridor');
+    await sleep(13000);
+    await page.keyboard.up('KeyW');
+    const atDoor = await page.evaluate(() => window.__house.feet());
+    console.log(`smoke: stopped at z=${atDoor.z.toFixed(2)}`);
+    check(await page.evaluate(() => window.__house.inReach()), 'door is in reach after walking');
+    await shot('3-door');
+
+    await page.keyboard.press('KeyE');
+    await sleep(700);
+    await shot('4-door-opening');
+    await sleep(900);
+    const state = await page.evaluate(() => window.__house.doorState());
+    check(state === 'OPEN', `door opens with E (state ${state})`);
+    await shot('5-door-open');
+  } else {
+    check(false, 'pointer lock granted');
   }
 
   check(errors.length === 0, 'no console or network errors');

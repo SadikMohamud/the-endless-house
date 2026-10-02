@@ -68,7 +68,7 @@ export class Engine {
       this.accumulator -= FIXED_DT;
     }
 
-    stage.frameUpdate(frameDt);
+    stage.frameUpdate(frameDt, { interact: this.input.consumePress('KeyE') });
     this.input.endFrame();
     this.renderer.render(stage.scene, stage.camera);
     this.frames++;
