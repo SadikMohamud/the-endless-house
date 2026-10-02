@@ -1,4 +1,4 @@
-﻿import type RAPIER from '@dimforge/rapier3d-compat';
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three/webgpu';
 import { MOVEMENT_PROFILES, PHYSICS_PROFILES, type HouseDNA, type Seed } from '../domain';
 import { DoorSwing } from '../house/door';

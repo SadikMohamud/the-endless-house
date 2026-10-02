@@ -29,4 +29,39 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Generators must be bit-identical across engines (docs/DETERMINISM.md).
+    files: ['src/gen/**/*.ts'],
+    rules: {
+      'no-restricted-properties': [
+        'error',
+        { object: 'Math', property: 'random', message: 'Use the seeded RNG, not Math.random().' },
+        ...[
+          'sin',
+          'cos',
+          'tan',
+          'asin',
+          'acos',
+          'atan',
+          'atan2',
+          'hypot',
+          'pow',
+          'exp',
+          'log',
+          'cbrt',
+        ].map((property) => ({
+          object: 'Math',
+          property,
+          message: `Math.${property} may differ between engines; see docs/DETERMINISM.md.`,
+        })),
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "BinaryExpression[operator='**']",
+          message: '** may differ between engines; multiply instead. See docs/DETERMINISM.md.',
+        },
+      ],
+    },
+  },
 );

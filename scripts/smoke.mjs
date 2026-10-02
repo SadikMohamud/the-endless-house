@@ -1,4 +1,4 @@
-﻿// Headless browser smoke test: serves the production build and checks the app runs.
+// Headless browser smoke test: serves the production build and checks the app runs.
 // Requires `npm run build` first. Set CHROME_PATH if Chrome is not in a standard location.
 // SMOKE_NO_WEBGPU=1 hides WebGPU to exercise the WebGL2 fallback.
 // SMOKE_SHOTS=dir saves screenshots along the walk.
@@ -77,11 +77,13 @@ try {
   console.log('smoke:', JSON.stringify(state));
   check(state.status === 'ready', 'app reaches ready state');
 
+  // Let first-frame shader compilation finish before counting.
+  await sleep(2000);
   const f0 = await page.evaluate(() => window.__house.frames());
-  await sleep(1000);
+  await sleep(2000);
   const f1 = await page.evaluate(() => window.__house.frames());
-  console.log(`smoke: ${f1 - f0} frames in 1 s (headless; not a performance figure)`);
-  check(f1 - f0 > 5, 'frames are rendering');
+  console.log(`smoke: ${f1 - f0} frames in 2 s (headless; not a performance figure)`);
+  check(f1 - f0 > 10, 'frames are rendering');
 
   // Enter: click the start screen, which requests pointer lock.
   await page.mouse.click(640, 360);
@@ -125,6 +127,30 @@ try {
   } else {
     check(false, 'pointer lock granted');
   }
+
+  // Forest, via the developer reproduction route.
+  await page.goto(`${URL}?world=smoke-forest`, { waitUntil: 'load' });
+  await page.waitForFunction(() => window.__house?.status !== 'starting', { timeout: 20000 });
+  const world = await page.evaluate(() => window.__house.world());
+  console.log('smoke: world', JSON.stringify(world));
+  check(world !== null && world.trees >= 400 && world.trees <= 900, 'forest generated in browser');
+  await page.mouse.click(640, 360);
+  await sleep(1300);
+  await shot('6-forest-arrival');
+  const f0pos = await page.evaluate(() => window.__house.feet());
+  await page.keyboard.down('ShiftLeft');
+  await page.keyboard.down('KeyW');
+  await sleep(2000);
+  await page.keyboard.up('KeyW');
+  await page.keyboard.up('ShiftLeft');
+  const f1pos = await page.evaluate(() => window.__house.feet());
+  const walked = Math.hypot(f1pos.x - f0pos.x, f1pos.z - f0pos.z);
+  console.log(`smoke: forest moved ${walked.toFixed(2)} m sprinting ~2 s`);
+  check(walked > 3, 'can move through the forest');
+  // Turn round to look back towards the frame.
+  for (let i = 0; i < 20; i++) await page.mouse.move(640 + (i + 1) * 70, 360);
+  await sleep(300);
+  await shot('7-forest-looking-back');
 
   check(errors.length === 0, 'no console or network errors');
   if (errors.length) console.error('  ' + errors.join('\n  '));

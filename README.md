@@ -38,3 +38,8 @@ Requires Node 22 or later and npm.
 ## Documents
 
 - [Experience brief](docs/EXPERIENCE_BRIEF.md): what the House should feel like.
+- [Determinism](docs/DETERMINISM.md): seed derivation, what reproduces and what does not.
+
+## Reproducing a world
+
+Open `http://localhost:5173/?world=<seed>` to load the forest for any world seed directly.

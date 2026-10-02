@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`forest generator > AT-06: matches a pinned fingerprint (a change here requires a generator version bump) 1`] = `
+{
+  "clearings": [
+    {
+      "radius": 13.285390566801652,
+      "x": 30.392873100936413,
+      "z": -10.19057490862906,
+    },
+  ],
+  "firstTree": {
+    "crownBase": 13.409094527153648,
+    "crownRadius": 3.358268004888669,
+    "height": 19.90265521639958,
+    "radius": 0.34324414063012226,
+    "x": -63.04444794473238,
+    "y": 13.972831163471426,
+    "z": -91.95068319997517,
+  },
+  "frame": {
+    "facing": {
+      "x": 0.7071067811865476,
+      "z": -0.7071067811865476,
+    },
+    "height": 2.4,
+    "width": 1,
+    "x": 30.392873100936413,
+    "y": 4.239603519439697,
+    "z": -10.19057490862906,
+  },
+  "lastTree": {
+    "crownBase": 12.582557113291296,
+    "crownRadius": 3.39247613362968,
+    "height": 19.864937876351178,
+    "radius": 0.268454583552666,
+    "x": -79.78505261468236,
+    "y": 13.51433089412482,
+    "z": 91.99795848892538,
+  },
+  "terrainSample": [
+    18.731557846069336,
+    17.95894432067871,
+    18.400123596191406,
+  ],
+  "treeCount": 599,
+  "version": "forest@1.0.0",
+}
+`;
+
+exports[`seeded RNG > produces pinned values (changing these means changing every world: bump generator versions) 1`] = `
+[
+  3470073140,
+  2841129787,
+  1226470128,
+  3086057850,
+]
+`;
+
+exports[`seeded RNG > produces pinned values (changing these means changing every world: bump generator versions) 2`] = `
+[
+  906505783,
+  2639141150,
+  2250820361,
+]
+`;
