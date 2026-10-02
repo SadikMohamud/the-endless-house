@@ -24,20 +24,28 @@ export type MovementProfileId = z.infer<typeof MovementProfileId>;
 export const VisualRealityProfile = z.strictObject({ id: VisualProfileId });
 export type VisualRealityProfile = z.infer<typeof VisualRealityProfile>;
 
-/** Values the physics runtime applies directly. Gravity is a vector, so direction is configurable. */
+/** Values the physics runtime applies directly. Every field changes runtime behaviour. */
 export const PhysicsProfile = z
   .strictObject({
     id: PhysicsProfileId,
+    /** m/s². Stored as a vector so directional gravity can arrive without a schema change. */
     gravity: Vec3,
-    /** Air resistance on the visitor, per second. */
+    /** Air resistance on the airborne visitor, per second. */
     linearDamping: z.number().min(0).max(10),
-    /** Surface friction coefficient. */
+    /** Ground grip, 0 to 2: scales how quickly the visitor stops. */
     friction: z.number().min(0).max(2),
+    /** Simulation speed multiplier. */
     timeScale: z.number().positive().max(4),
   })
   .refine(
     (p) => Math.hypot(p.gravity.x, p.gravity.y, p.gravity.z) <= 30,
     'gravity magnitude must not exceed 30 m/s²',
+  )
+  // The character controller's up axis is fixed to +Y. Sideways gravity would be silently
+  // ignored, so it is rejected until directional gravity is implemented.
+  .refine(
+    (p) => p.gravity.x === 0 && p.gravity.z === 0 && p.gravity.y <= 0,
+    'gravity must point straight down until directional gravity is supported',
   );
 export type PhysicsProfile = z.infer<typeof PhysicsProfile>;
 
@@ -52,6 +60,12 @@ export const MovementProfile = z.strictObject({
   sprintSpeed: z.number().positive().max(40).nullable(),
   /** Initial upward speed in m/s. null disables jumping. */
   jumpSpeed: z.number().positive().max(20).nullable(),
+  /** m/s² towards the target speed while moving on the ground. */
+  acceleration: z.number().positive().max(100),
+  /** m/s² towards rest on the ground, before friction scaling. */
+  deceleration: z.number().positive().max(100),
+  /** Fraction of ground acceleration available in the air, 0 to 1. */
+  airControl: z.number().min(0).max(1),
   eyeHeight: z.number().positive().max(3),
   capsuleRadius: z.number().positive().max(1),
 });
@@ -146,6 +160,10 @@ export const MOVEMENT_PROFILES: Readonly<Record<MovementProfileId, MovementProfi
     walkSpeed: 1.5,
     sprintSpeed: null,
     jumpSpeed: null,
+    // Gentle start and stop: the House is walked slowly.
+    acceleration: 6,
+    deceleration: 8,
+    airControl: 0,
     eyeHeight: 1.65,
     capsuleRadius: 0.3,
   }),
@@ -154,6 +172,9 @@ export const MOVEMENT_PROFILES: Readonly<Record<MovementProfileId, MovementProfi
     walkSpeed: 1.5,
     sprintSpeed: 3.0,
     jumpSpeed: 4.0,
+    acceleration: 10,
+    deceleration: 12,
+    airControl: 0.3,
     eyeHeight: 1.65,
     capsuleRadius: 0.3,
   }),

@@ -105,6 +105,14 @@ describe('Walking the House (real collision)', () => {
     expect(Math.abs(player.feet.x)).toBeLessThan(0.05);
   });
 
+  it('stands on the floorboards, not in them', async () => {
+    const { player, run } = await walkHouse();
+    run(NO_INTENT, 2);
+    expect(player.grounded).toBe(true);
+    expect(player.feet.y).toBeGreaterThanOrEqual(0);
+    expect(player.feet.y).toBeLessThan(0.02);
+  });
+
   it('cannot leave the House in any direction from the start room', async () => {
     for (let k = 0; k < 8; k++) {
       const { player, run } = await walkHouse();
