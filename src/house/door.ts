@@ -17,6 +17,12 @@ export class DoorSwing {
     return true;
   }
 
+  /** Closes the door again at once (used when a journey falls back to the House). */
+  reset(): void {
+    this.state = 'CLOSED';
+    this.elapsed = 0;
+  }
+
   update(dt: number): void {
     if (this.state !== 'OPENING') return;
     this.elapsed = Math.min(this.elapsed + dt, DOOR_SWING_SECONDS);

@@ -7,6 +7,7 @@ import { disposeObject3D } from '../runtime/dispose';
 import { Player, type MoveIntent } from '../runtime/player';
 import type { Stage } from '../runtime/stage';
 import { buildForestColliders, FRAME_POST, yawFacing } from '../world/forest-physics';
+import { crossedFrame } from '../world/frame-crossing';
 
 const SHADOW_EXTENT = 45;
 
@@ -18,12 +19,15 @@ export class ForestStage implements Stage {
   private readonly world: RAPIER.World;
   private readonly sun: THREE.DirectionalLight;
   private readonly sunDir: THREE.Vector3;
+  private lastFeet: { x: number; y: number; z: number };
+  private returned = false;
 
   constructor(
     rapier: Rapier,
     readonly reality: RealityConfiguration,
     readonly forest: GeneratedForest,
     dna: HouseDNA,
+    private readonly events: { onReturn?: () => void } = {},
   ) {
     const { physicsProfile, environmentProfile: env, lightingProfile: light } = reality;
     const palette = reality.materialProfile.palette;
@@ -67,6 +71,7 @@ export class ForestStage implements Stage {
       physics: physicsProfile,
     });
     this.world.step();
+    this.lastFeet = this.player.feet;
     this.frameUpdate();
   }
 
@@ -78,6 +83,14 @@ export class ForestStage implements Stage {
     this.player.fixedStep(intent, dt);
     this.world.timestep = dt;
     this.world.step();
+
+    // Walking through the lone frame is the way back.
+    const feet = this.player.feet;
+    if (!this.returned && crossedFrame(this.lastFeet, feet, this.forest.returnFrame)) {
+      this.returned = true;
+      this.events.onReturn?.();
+    }
+    this.lastFeet = feet;
   }
 
   frameUpdate(): void {

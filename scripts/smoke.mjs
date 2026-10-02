@@ -120,10 +120,71 @@ try {
     await page.keyboard.press('KeyE');
     await sleep(700);
     await shot('4-door-opening');
-    await sleep(900);
+    await sleep(550);
     const state = await page.evaluate(() => window.__house.doorState());
     check(state === 'OPEN', `door opens with E (state ${state})`);
-    await shot('5-door-open');
+    await shot('5-haze');
+
+    const phase = (p) =>
+      page.waitForFunction((want) => window.__house.phase() === want, { timeout: 20000 }, p);
+    const journey = () => page.evaluate(() => window.__house.journey());
+
+    /** From inside a world: walk back through the frame and wait to be in the House again. */
+    const returnHome = async (label) => {
+      await page.keyboard.down('KeyS');
+      await phase('to-house');
+      await page.keyboard.up('KeyS');
+      await phase('house');
+      await sleep(1700); // haze lifts
+      const j = await journey();
+      check(
+        j.location.kind === 'HOUSE' && j.location.roomId === 'corridor',
+        `${label}: back in the House corridor`,
+      );
+      return page.evaluate(() => window.__house.gpuMemory());
+    };
+
+    // Trip 1: arrive in the world.
+    await phase('world');
+    await sleep(1700);
+    let j = await journey();
+    check(
+      j.location.kind === 'WORLD' && j.location.worldId === j.worldId,
+      'trip 1: journey is in the world',
+    );
+    await shot('6-trip1-world');
+    const memory1 = await returnHome('trip 1');
+    await shot('7-trip1-home');
+
+    // Trip 2: from the corridor back to the door, through it, and home again.
+    await page.keyboard.down('KeyW');
+    await sleep(9000);
+    await page.keyboard.up('KeyW');
+    check(
+      await page.evaluate(() => window.__house.inReach()),
+      'trip 2: door in reach from the corridor',
+    );
+    await page.keyboard.press('KeyE');
+    await phase('world');
+    await sleep(1700);
+    const memory2 = await returnHome('trip 2');
+
+    j = await journey();
+    const types = j.history.map((e) => e.type).join(',');
+    console.log(`smoke: history ${types}`);
+    const worlds = j.history.filter((e) => e.type === 'WORLD_ENTERED').map((e) => e.worldId);
+    check(j.history.length === 10, 'journey history has both round trips');
+    check(
+      worlds.length === 2 && worlds[0] !== worlds[1],
+      'the same door led to two different worlds',
+    );
+    console.log(
+      `smoke: GPU memory after trip 1 ${JSON.stringify(memory1)}, after trip 2 ${JSON.stringify(memory2)}`,
+    );
+    check(
+      memory2.geometries === memory1.geometries && memory2.textures === memory1.textures,
+      'AT-11: GPU memory does not grow across round trips',
+    );
   } else {
     check(false, 'pointer lock granted');
   }

@@ -1,11 +1,21 @@
 import type * as THREE from 'three/webgpu';
 
-/** Disposes every geometry, material and texture under `root`. Shared resources are disposed once. */
+type Disposable = { dispose(): void };
+
+/**
+ * Releases every GPU resource under `root`: geometries, materials, their textures, instance
+ * buffers (InstancedMesh.dispose) and light shadow maps (Light.dispose). Shared resources are
+ * disposed once.
+ */
 export function disposeObject3D(root: THREE.Object3D): void {
-  const seen = new Set<{ dispose(): void }>();
-  const add = (r: { dispose(): void } | null | undefined) => r && seen.add(r);
+  const seen = new Set<Disposable>();
+  const add = (r: Disposable | null | undefined) => r && seen.add(r);
 
   root.traverse((obj) => {
+    // Lights own shadow render targets; instanced meshes own instance buffers.
+    if ((obj as THREE.Light).isLight || (obj as THREE.InstancedMesh).isInstancedMesh) {
+      add(obj as unknown as Disposable);
+    }
     const mesh = obj as Partial<THREE.Mesh>;
     add(mesh.geometry);
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];

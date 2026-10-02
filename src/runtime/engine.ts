@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { Input } from './input';
+import { NO_INTENT } from './player';
 import type { Stage } from './stage';
 
 export const FIXED_DT = 1 / 60;
@@ -12,6 +13,8 @@ export class Engine {
   readonly renderer: THREE.WebGPURenderer;
   backend: RendererBackend = 'webgl2';
   frames = 0;
+  /** False during transitions: the visitor cannot move, look or interact. */
+  inputEnabled = true;
   private stage: Stage | null = null;
   private accumulator = 0;
   private last = 0;
@@ -59,16 +62,19 @@ export class Engine {
     const stage = this.stage;
     if (!stage) return;
 
+    // Input is still drained while frozen, so nothing queued fires once it resumes.
     const look = this.input.takeLook();
-    stage.look(look.yaw, look.pitch);
+    if (this.inputEnabled) stage.look(look.yaw, look.pitch);
 
     this.accumulator += frameDt;
     while (this.accumulator >= FIXED_DT) {
-      stage.fixedUpdate(this.input.intent(), FIXED_DT);
+      const intent = this.input.intent();
+      stage.fixedUpdate(this.inputEnabled ? intent : NO_INTENT, FIXED_DT);
       this.accumulator -= FIXED_DT;
     }
 
-    stage.frameUpdate(frameDt, { interact: this.input.consumePress('KeyE') });
+    const interact = this.input.consumePress('KeyE');
+    stage.frameUpdate(frameDt, { interact: this.inputEnabled && interact });
     this.input.endFrame();
     this.renderer.render(stage.scene, stage.camera);
     this.frames++;

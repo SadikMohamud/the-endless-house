@@ -32,6 +32,16 @@ export interface HouseLayout {
   lamp: { base: Vec3; height: number };
   /** Point inside the window opening, outside the House, that window light comes from. */
   windowLightFrom: Vec3;
+  /** Where a visitor returning from a world appears: the corridor, facing the door room. */
+  corridorArrival: { roomId: string; position: Vec3; facing: number };
+}
+
+/** The room containing a floor position, or null (inside a wall or outside the House). */
+export function roomAt(house: House, x: number, z: number): string | null {
+  const room = house.rooms.find(
+    (r) => x >= r.min.x && x <= r.max.x && z >= r.min.z && z <= r.max.z,
+  );
+  return room?.id ?? null;
 }
 
 const LINTEL = 0.6;
@@ -348,5 +358,10 @@ export function buildHouseLayout(dna: HouseDNA, seed: Seed, houseId = 'house-1')
     },
     lamp: { base: { x: dw / 2 + 0.9, y: 0, z: doorWallZ + 0.55 }, height: 1.7 },
     windowLightFrom: { x: wx - 4, y: 5, z: windowCentreZ + 0.5 },
+    corridorArrival: {
+      roomId: 'corridor',
+      position: { x: 0, y: 0, z: corridor.z0 + 2 },
+      facing: 0,
+    },
   };
 }

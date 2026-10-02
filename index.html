@@ -88,12 +88,22 @@
       #glyph.focus {
         opacity: 0.6;
       }
+      /* The transition haze: not a loading screen. No spinner, no text. */
+      #haze {
+        position: fixed;
+        inset: 0;
+        background: #ffe6c4;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 1.5s ease-in-out;
+      }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="dot"></div>
     <div id="glyph">E</div>
+    <div id="haze"></div>
     <div id="start">
       <h1>THE ENDLESS HOUSE</h1>
       <p>click to enter</p>

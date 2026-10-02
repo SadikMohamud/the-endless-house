@@ -1,16 +1,18 @@
-import { DEFAULT_HOUSE_DNA } from './domain';
-import { DEFAULT_BUDGET, generateForest } from './gen/forest';
-import { planWorld } from './gen/planner';
+import { DEFAULT_HOUSE_DNA, type Journey } from './domain';
+import { buildDestination } from './journey/destination';
+import { JourneyEngine } from './journey/engine';
+import { Experience } from './journey/experience';
 import { seedsFromWorldSeed } from './gen/seeds';
-import { loadPhysics, type Rapier } from './platform/physics';
+import { loadPhysics } from './platform/physics';
 import { Engine } from './runtime/engine';
-import type { Player } from './runtime/player';
 import { Input } from './runtime/input';
-import type { Stage } from './runtime/stage';
 import { ForestStage } from './stages/forest-stage';
 import { HouseStage } from './stages/house-stage';
 
-/** Read-only runtime state for automated checks. Phase 8 replaces this with proper diagnostics. */
+const HOUSE_ID = 'house-1';
+const HOUSE_SEED = 'house-seed-1';
+
+/** Read-only runtime state for automated checks. Phase 8 adds the visible diagnostics overlay. */
 interface HouseState {
   status: 'starting' | 'ready' | 'error';
   renderer?: string;
@@ -21,6 +23,9 @@ interface HouseState {
   locked: () => boolean;
   inReach: () => boolean;
   doorState: () => string | null;
+  phase: () => string;
+  journey: () => Journey | null;
+  gpuMemory: () => { geometries: number; textures: number } | null;
   world: () => {
     seed: string;
     generatorVersion: string;
@@ -41,21 +46,12 @@ const app = document.getElementById('app')!;
 const start = document.getElementById('start')!;
 const dot = document.getElementById('dot')!;
 const glyph = document.getElementById('glyph')!;
+const haze = document.getElementById('haze')!;
 
-/**
- * Developer reproduction route (spec §53): `?world=<seed>` opens the forest for that world seed
- * directly. Phase 7 makes the House door the normal way in.
- */
-function forestFromSeed(rapier: Rapier, worldSeed: string): ForestStage {
-  const reality = planWorld(seedsFromWorldSeed(worldSeed));
-  const forest = generateForest({
-    worldId: 'dev-world',
-    journeyId: 'dev-journey',
-    reality,
-    frame: { width: DEFAULT_HOUSE_DNA.doorWidth, height: DEFAULT_HOUSE_DNA.doorHeight },
-    budget: DEFAULT_BUDGET,
-  });
-  return new ForestStage(rapier, reality, forest, DEFAULT_HOUSE_DNA);
+/** 128 bits from the browser's secure random source, as hex. */
+function randomSeed(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function boot(): Promise<void> {
@@ -69,37 +65,70 @@ async function boot(): Promise<void> {
     glyph.classList.toggle('focus', on);
   };
 
+  // Developer reproduction route (spec §53): `?world=<seed>` opens that forest directly.
   const worldSeed = new URLSearchParams(location.search).get('world');
-  const stage: Stage & { player: Player } = worldSeed
-    ? forestFromSeed(rapier, worldSeed)
-    : new HouseStage(rapier, DEFAULT_HOUSE_DNA, 'house-seed-1', { onFocusChange: setFocus });
-  engine.setStage(stage);
+  let experience: Experience | null = null;
+  let devForest: ForestStage | null = null;
+  if (worldSeed) {
+    const d = buildDestination(
+      seedsFromWorldSeed(worldSeed),
+      { worldId: 'dev-world', journeyId: 'dev-journey' },
+      DEFAULT_HOUSE_DNA,
+    );
+    devForest = new ForestStage(rapier, d.reality, d.forest, DEFAULT_HOUSE_DNA);
+    engine.setStage(devForest);
+  } else {
+    const journey = new JourneyEngine({
+      journeyId: crypto.randomUUID(),
+      visitorId: 'local-visitor',
+      houseId: HOUSE_ID,
+      houseSeed: HOUSE_SEED,
+      journeySeed: randomSeed(),
+      roomId: 'start-room',
+    });
+    experience = new Experience(rapier, engine, DEFAULT_HOUSE_DNA, HOUSE_SEED, journey, {
+      haze,
+      setFocus,
+    });
+  }
   engine.start();
 
   // The start screen forwards clicks to the canvas, which requests pointer lock.
   start.addEventListener('click', () => app.click());
   input.onLockChanged((locked) => start.classList.toggle('hidden', locked));
 
+  const current = () => experience?.stage ?? devForest!;
   window.__house = {
     status: 'ready',
     renderer: engine.backend,
     physics: `rapier ${rapier.version()}`,
     frames: () => engine.frames,
-    feet: () => stage.player.feet,
+    feet: () => current().player.feet,
     locked: () => input.isLocked,
-    inReach: () => (stage instanceof HouseStage ? stage.inReach : false),
-    doorState: () => (stage instanceof HouseStage ? stage.doorState : null),
-    world: () =>
-      stage instanceof ForestStage
+    inReach: () => {
+      const s = current();
+      return s instanceof HouseStage ? s.inReach : false;
+    },
+    doorState: () => {
+      const s = current();
+      return s instanceof HouseStage ? s.doorState : null;
+    },
+    phase: () => experience?.phase ?? 'dev-world',
+    journey: () => (experience ? experience.journey.journey : null),
+    gpuMemory: () => ({ ...engine.renderer.info.memory }),
+    world: () => {
+      const s = current();
+      return s instanceof ForestStage
         ? {
-            seed: stage.reality.seed,
-            generatorVersion: stage.reality.generatorVersion,
-            physicsProfile: stage.reality.physicsProfile.id,
-            lighting: stage.reality.lightingProfile.id,
-            trees: stage.forest.stats.treeCount,
-            clearings: stage.forest.stats.clearingCount,
+            seed: s.reality.seed,
+            generatorVersion: s.reality.generatorVersion,
+            physicsProfile: s.reality.physicsProfile.id,
+            lighting: s.reality.lightingProfile.id,
+            trees: s.forest.stats.treeCount,
+            clearings: s.forest.stats.clearingCount,
           }
-        : null,
+        : null;
+    },
   };
 }
 
@@ -110,6 +139,9 @@ window.__house = {
   locked: () => false,
   inReach: () => false,
   doorState: () => null,
+  phase: () => 'starting',
+  journey: () => null,
+  gpuMemory: () => null,
   world: () => null,
 };
 boot().catch((err: unknown) => {

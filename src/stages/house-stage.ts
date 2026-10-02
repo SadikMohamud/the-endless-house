@@ -3,21 +3,29 @@ import * as THREE from 'three/webgpu';
 import { MOVEMENT_PROFILES, PHYSICS_PROFILES, type HouseDNA, type Seed } from '../domain';
 import { DoorSwing } from '../house/door';
 import { INTERACTION_RANGE, rayBoxDistance, viewDirection } from '../house/interaction';
-import { buildHouseLayout, type HouseLayout, type HouseMaterial } from '../house/layout';
+import { buildHouseLayout, roomAt, type HouseLayout, type HouseMaterial } from '../house/layout';
 import type { Rapier } from '../platform/physics';
 import { disposeObject3D } from '../runtime/dispose';
 import { Player, type MoveIntent } from '../runtime/player';
 import type { FrameInput, Stage } from '../runtime/stage';
 
-/** Colour of the light behind the door. Seed-dependent from Phase 7. */
-const DOOR_LIGHT = '#FFE6C4';
-
 export interface HouseStageEvents {
   /** The door is in reach and looked at (true) or no longer is (false). */
   onFocusChange?: (inReach: boolean) => void;
-  /** The visitor opened a door. Phase 7 connects this to the journey engine. */
+  /** The visitor opened a door. */
   onDoorOpened?: (doorId: string) => void;
+  /** The visitor walked into another room. */
+  onRoomChange?: (roomId: string) => void;
 }
+
+export interface HouseStageOptions {
+  /** Light behind the door: a hint of the destination it currently leads to. */
+  doorLight: string;
+  /** Where the visitor appears: the start room, or the corridor when returning. */
+  arrival: 'start' | 'corridor';
+}
+
+const DEFAULT_OPTIONS: HouseStageOptions = { doorLight: '#FFE6C4', arrival: 'start' };
 
 /** The House: always EARTH gravity, walking only. */
 export class HouseStage implements Stage {
@@ -27,17 +35,23 @@ export class HouseStage implements Stage {
   readonly player: Player;
   readonly door = new DoorSwing();
   inReach = false;
+  /** Room the visitor is standing in. */
+  room: string;
 
   private readonly world: RAPIER.World;
   private readonly doorPivot = new THREE.Group();
   private readonly floodLight: THREE.PointLight;
+  private readonly doorLight: string;
 
   constructor(
     rapier: Rapier,
     dna: HouseDNA,
     seed: Seed,
     private readonly events: HouseStageEvents = {},
+    options: Partial<HouseStageOptions> = {},
   ) {
+    const opts = { ...DEFAULT_OPTIONS, ...options };
+    this.doorLight = opts.doorLight;
     const physics = PHYSICS_PROFILES.EARTH;
     this.layout = buildHouseLayout(dna, seed);
     this.world = new rapier.World(physics.gravity);
@@ -70,7 +84,9 @@ export class HouseStage implements Stage {
     this.buildLamp(dna);
     this.floodLight = this.buildLights(dna);
 
-    const spawn = this.layout.house.spawn;
+    const spawn =
+      opts.arrival === 'corridor' ? this.layout.corridorArrival : this.layout.house.spawn;
+    this.room = spawn.roomId;
     this.player = new Player(rapier, this.world, {
       position: spawn.position,
       yaw: spawn.facing,
@@ -93,6 +109,13 @@ export class HouseStage implements Stage {
     this.player.fixedStep(intent, dt);
     this.world.timestep = dt;
     this.world.step();
+
+    const feet = this.player.feet;
+    const room = roomAt(this.layout.house, feet.x, feet.z);
+    if (room && room !== this.room) {
+      this.room = room;
+      this.events.onRoomChange?.(room);
+    }
   }
 
   frameUpdate(frameDt: number, input: FrameInput): void {
@@ -174,7 +197,7 @@ export class HouseStage implements Stage {
     this.scene.add(this.doorPivot);
 
     // The lit space beyond the door, seen through the gap and when it opens.
-    const glow = new THREE.MeshBasicMaterial({ color: DOOR_LIGHT, side: THREE.BackSide });
+    const glow = new THREE.MeshBasicMaterial({ color: this.doorLight, side: THREE.BackSide });
     const lb = d.lightBox;
     const box = new THREE.Mesh(new THREE.BoxGeometry(lb.size.x, lb.size.y, lb.size.z), glow);
     box.position.set(lb.centre.x, lb.centre.y, lb.centre.z);
@@ -183,12 +206,12 @@ export class HouseStage implements Stage {
     // The thin line of light under the door: a bright sliver on the boards and a faint spill.
     const strip = new THREE.Mesh(
       new THREE.PlaneGeometry(d.width * 0.96, 0.05),
-      new THREE.MeshBasicMaterial({ color: DOOR_LIGHT, transparent: true, opacity: 0.55 }),
+      new THREE.MeshBasicMaterial({ color: this.doorLight, transparent: true, opacity: 0.55 }),
     );
     strip.rotation.x = -Math.PI / 2;
     strip.position.set(d.hinge.x + d.width / 2, 0.002, d.faceZ + 0.02);
     this.scene.add(strip);
-    const spill = new THREE.PointLight(DOOR_LIGHT, 0.35, 1.6, 2);
+    const spill = new THREE.PointLight(this.doorLight, 0.35, 1.6, 2);
     spill.position.set(d.hinge.x + d.width / 2, 0.03, d.faceZ + 0.08);
     this.scene.add(spill);
   }
@@ -243,7 +266,7 @@ export class HouseStage implements Stage {
     doorWash.target.position.set(door.hinge.x + door.width / 2, 1.2, door.faceZ);
     this.scene.add(doorWash, doorWash.target);
 
-    const flood = new THREE.PointLight(DOOR_LIGHT, 0, 0, 2);
+    const flood = new THREE.PointLight(this.doorLight, 0, 0, 2);
     flood.position.set(door.hinge.x + door.width / 2, 1.3, door.faceZ - 0.4);
     this.scene.add(flood);
     return flood;
