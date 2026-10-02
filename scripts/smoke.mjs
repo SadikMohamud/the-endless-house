@@ -66,7 +66,25 @@ try {
     });
   }
 
-  await page.goto(URL, { waitUntil: 'load' });
+  // Milestone 1 performance budget (docs/MILESTONE-1.md). Headless Chrome throttles its frame
+  // rate, so fps is budgeted by `npm run perf` in a headed window; here only structure and CPU.
+  const BUDGET = {
+    house: { maxCpuMs: 8, maxDrawCalls: 200, maxTriangles: 200_000 },
+    forest: { maxCpuMs: 8, maxDrawCalls: 40, maxTriangles: 1_500_000 },
+  };
+  const perf = async (label, budget) => {
+    const d = await page.evaluate(() => window.__house.diagnostics());
+    const a = d.loadedAssets;
+    console.log(
+      `smoke: perf ${label}: ${d.fps.toFixed(1)} fps, mean ${d.frameMs.toFixed(1)} ms, p95 ${d.frameP95Ms.toFixed(1)} ms, cpu ${d.cpuMs.toFixed(2)} ms, ${a.drawCalls} draw calls, ${a.triangles} triangles, ${a.geometries} geometries, ${a.textures} textures, heap ${d.jsHeapMb?.toFixed(0)} MB`,
+    );
+    check(d.cpuMs <= budget.maxCpuMs, `${label}: cpu <= ${budget.maxCpuMs} ms`);
+    check(a.drawCalls <= budget.maxDrawCalls, `${label}: draw calls <= ${budget.maxDrawCalls}`);
+    check(a.triangles <= budget.maxTriangles, `${label}: triangles <= ${budget.maxTriangles}`);
+    return d;
+  };
+
+  await page.goto(`${URL}?debug`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__house?.status !== 'starting', { timeout: 20000 });
   const state = await page.evaluate(() => ({
     status: window.__house.status,
@@ -110,6 +128,15 @@ try {
     // Keep walking: through the corridor to the door (about 32 m at 1.5 m/s).
     await sleep(10000);
     await shot('2-corridor');
+    await perf('House corridor', BUDGET.house);
+    await page.keyboard.press('Backquote');
+    await sleep(400);
+    check(
+      await page.evaluate(() => window.__house.diagnosticsVisible()),
+      'diagnostics overlay opens',
+    );
+    await shot('2b-diagnostics');
+    await page.keyboard.press('Backquote');
     await sleep(13000);
     await page.keyboard.up('KeyW');
     const atDoor = await page.evaluate(() => window.__house.feet());
@@ -208,6 +235,8 @@ try {
   const walked = Math.hypot(f1pos.x - f0pos.x, f1pos.z - f0pos.z);
   console.log(`smoke: forest moved ${walked.toFixed(2)} m sprinting ~2 s`);
   check(walked > 3, 'can move through the forest');
+  await sleep(1500); // fill the frame-time window with forest frames
+  await perf('forest', BUDGET.forest);
   // Turn round to look back towards the frame.
   for (let i = 0; i < 20; i++) await page.mouse.move(640 + (i + 1) * 70, 360);
   await sleep(300);

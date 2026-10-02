@@ -8,6 +8,7 @@ import { Engine } from './runtime/engine';
 import { Input } from './runtime/input';
 import { ForestStage } from './stages/forest-stage';
 import { HouseStage } from './stages/house-stage';
+import { DiagnosticsOverlay, transitionGraph, type DiagnosticsSnapshot } from './ui/diagnostics';
 
 const HOUSE_ID = 'house-1';
 const HOUSE_SEED = 'house-seed-1';
@@ -26,6 +27,8 @@ interface HouseState {
   phase: () => string;
   journey: () => Journey | null;
   gpuMemory: () => { geometries: number; textures: number } | null;
+  diagnostics: () => DiagnosticsSnapshot | null;
+  diagnosticsVisible: () => boolean;
   world: () => {
     seed: string;
     generatorVersion: string;
@@ -98,6 +101,44 @@ async function boot(): Promise<void> {
   input.onLockChanged((locked) => start.classList.toggle('hidden', locked));
 
   const current = () => experience?.stage ?? devForest!;
+
+  const collectDiagnostics = (): DiagnosticsSnapshot => {
+    const s = current();
+    const j = experience ? experience.journey.journey : null;
+    const forest = s instanceof ForestStage ? s : null;
+    const info = engine.renderer.info;
+    const heap = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+    return {
+      renderer: engine.backend,
+      journeyId: j?.journeyId ?? null,
+      location: experience ? experience.phase : 'dev-world',
+      roomId: s instanceof HouseStage ? s.room : null,
+      worldId: forest ? (j?.worldId ?? 'dev-world') : null,
+      seed: forest?.reality.seed ?? null,
+      generatorVersion: forest?.reality.generatorVersion ?? null,
+      visualProfile: forest?.reality.visualProfile.id ?? null,
+      physicsProfile: s.player.physics.id,
+      movementProfile: s.player.movement.id,
+      gravity: s.player.physics.gravity.y,
+      loadedAssets: {
+        geometries: info.memory.geometries,
+        textures: info.memory.textures,
+        drawCalls: info.render.drawCalls,
+        triangles: info.render.triangles,
+      },
+      fps: engine.stats.fps,
+      frameMs: engine.stats.frameMs,
+      frameP95Ms: engine.stats.frameP95Ms,
+      cpuMs: engine.stats.cpuMs,
+      jsHeapMb: heap ? heap.usedJSHeapSize / 1048576 : null,
+      online: navigator.onLine,
+      transitionGraph: transitionGraph(j),
+    };
+  };
+  // Development builds always; production only with ?debug. Toggle with the backtick key.
+  if (import.meta.env.DEV || new URLSearchParams(location.search).has('debug')) {
+    new DiagnosticsOverlay(document.getElementById('diagnostics')!, collectDiagnostics);
+  }
   window.__house = {
     status: 'ready',
     renderer: engine.backend,
@@ -116,6 +157,8 @@ async function boot(): Promise<void> {
     phase: () => experience?.phase ?? 'dev-world',
     journey: () => (experience ? experience.journey.journey : null),
     gpuMemory: () => ({ ...engine.renderer.info.memory }),
+    diagnostics: collectDiagnostics,
+    diagnosticsVisible: () => !document.getElementById('diagnostics')!.hidden,
     world: () => {
       const s = current();
       return s instanceof ForestStage
@@ -142,6 +185,8 @@ window.__house = {
   phase: () => 'starting',
   journey: () => null,
   gpuMemory: () => null,
+  diagnostics: () => null,
+  diagnosticsVisible: () => false,
   world: () => null,
 };
 boot().catch((err: unknown) => {

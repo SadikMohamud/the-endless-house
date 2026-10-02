@@ -88,6 +88,25 @@
       #glyph.focus {
         opacity: 0.6;
       }
+      /* Developer diagnostics (backtick). Not part of the experience. */
+      #diagnostics {
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        margin: 0;
+        padding: 10px 12px;
+        max-width: calc(100vw - 48px);
+        background: rgba(0, 0, 0, 0.72);
+        color: #cfd8d4;
+        font:
+          11px/1.45 ui-monospace,
+          Consolas,
+          monospace;
+        white-space: pre-wrap;
+        word-break: break-all;
+        pointer-events: none;
+        z-index: 10;
+      }
       /* The transition haze: not a loading screen. No spinner, no text. */
       #haze {
         position: fixed;
@@ -104,6 +123,7 @@
     <div id="dot"></div>
     <div id="glyph">E</div>
     <div id="haze"></div>
+    <pre id="diagnostics" hidden></pre>
     <div id="start">
       <h1>THE ENDLESS HOUSE</h1>
       <p>click to enter</p>

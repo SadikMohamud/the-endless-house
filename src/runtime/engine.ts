@@ -1,4 +1,5 @@
 import * as THREE from 'three/webgpu';
+import { FrameStats } from './frame-stats';
 import type { Input } from './input';
 import { NO_INTENT } from './player';
 import type { Stage } from './stage';
@@ -15,6 +16,7 @@ export class Engine {
   frames = 0;
   /** False during transitions: the visitor cannot move, look or interact. */
   inputEnabled = true;
+  readonly stats = new FrameStats();
   private stage: Stage | null = null;
   private accumulator = 0;
   private last = 0;
@@ -48,6 +50,7 @@ export class Engine {
     this.stage?.dispose();
     this.stage = stage;
     this.accumulator = 0;
+    this.stats.reset(); // measurements describe the current stage only
     this.resize();
   }
 
@@ -57,7 +60,9 @@ export class Engine {
   }
 
   private frame = (now: number) => {
-    const frameDt = Math.min((now - this.last) / 1000, MAX_FRAME_DT);
+    const workStart = performance.now();
+    const intervalMs = now - this.last;
+    const frameDt = Math.min(intervalMs / 1000, MAX_FRAME_DT);
     this.last = now;
     const stage = this.stage;
     if (!stage) return;
@@ -78,6 +83,7 @@ export class Engine {
     this.input.endFrame();
     this.renderer.render(stage.scene, stage.camera);
     this.frames++;
+    this.stats.record(intervalMs, performance.now() - workStart);
   };
 
   private resize = () => {

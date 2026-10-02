@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node scripts/smoke.mjs",
+    "perf": "node scripts/perf.mjs",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build && npm run smoke"
   },
   "repository": {
