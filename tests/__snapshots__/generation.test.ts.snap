@@ -44,7 +44,7 @@ exports[`forest generator > AT-06: matches a pinned fingerprint (a change here r
     18.400123596191406,
   ],
   "treeCount": 599,
-  "version": "forest@1.0.0",
+  "version": "forest@1.1.0",
 }
 `;
 

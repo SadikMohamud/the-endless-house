@@ -7,11 +7,24 @@ import {
 } from '../domain';
 import { Rng } from './rng';
 
-export const FOREST_GENERATOR_VERSION = 'forest@1.0.0';
+/**
+ * Version of the whole forest pipeline: planner and generator. Bump it whenever the same seed
+ * would produce a different plan or a different world.
+ * 1.1.0: visual profiles (Phase 10).
+ */
+export const FOREST_GENERATOR_VERSION = 'forest@1.1.0';
 
 /** Physics profile odds for the forest. Ordinary first: most worlds feel like Earth. */
 const PHYSICS_WEIGHTS = { EARTH: 0.7, LOW_GRAVITY: 0.3 } as const;
 const LIGHTING_WEIGHTS = { OVERCAST: 0.6, LOW_SUN: 0.4 } as const;
+/** Visual realities: ordinary first, so unusual ones are noticed. */
+export const VISUAL_WEIGHTS = {
+  NATURAL: 0.6,
+  LOW_POLY: 0.12,
+  MONOCHROME: 0.12,
+  TWO_BIT: 0.08,
+  WIREFRAME: 0.08,
+} as const;
 
 /**
  * The deterministic planner: seeds in, validated RealityConfiguration out.
@@ -23,6 +36,8 @@ export function planWorld(seeds: SeedSet): RealityConfiguration {
 
   const physicsId = physicsRng.weighted(PHYSICS_WEIGHTS);
   const lightingId = visualRng.weighted(LIGHTING_WEIGHTS);
+  // Its own stream, so adding styles did not reshuffle existing lighting and fog draws.
+  const visualId = new Rng(`${seeds.visualSeed}/style`).weighted(VISUAL_WEIGHTS);
 
   const lightingProfile: LightingProfile =
     lightingId === 'OVERCAST'
@@ -48,7 +63,7 @@ export function planWorld(seeds: SeedSet): RealityConfiguration {
 
   return RealityConfiguration.parse({
     worldType: 'FOREST',
-    visualProfile: { id: 'NATURAL' },
+    visualProfile: { id: visualId },
     physicsProfile: PHYSICS_PROFILES[physicsId],
     movementProfile: MOVEMENT_PROFILES.STANDARD,
     timeProfile: { id: 'NORMAL' },

@@ -1,4 +1,4 @@
-import { DEFAULT_HOUSE_DNA } from './domain';
+import { DEFAULT_HOUSE_DNA, VisualProfileId } from './domain';
 import { planWorld } from './gen/planner';
 import { seedsFromWorldSeed } from './gen/seeds';
 import { buildDestination } from './journey/destination';
@@ -108,7 +108,12 @@ async function boot(): Promise<void> {
       { worldId: 'dev-world', journeyId: 'dev-journey' },
       DEFAULT_HOUSE_DNA,
     );
-    devForest = new ForestStage(rapier, d.reality, d.forest, DEFAULT_HOUSE_DNA);
+    // `&visual=<STYLE>` overrides the planned visual profile, to inspect each style.
+    const visual = VisualProfileId.safeParse(new URLSearchParams(location.search).get('visual'));
+    const reality = visual.success
+      ? { ...d.reality, visualProfile: { id: visual.data } }
+      : d.reality;
+    devForest = new ForestStage(rapier, reality, d.forest, DEFAULT_HOUSE_DNA);
     engine.setStage(devForest);
   } else {
     const journey = await openJourney();

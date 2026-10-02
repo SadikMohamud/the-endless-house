@@ -54,8 +54,19 @@ inside generators, because the ECMAScript spec lets their results differ between
 last bit. Directions are picked from a table of exact unit vectors instead of angles.
 
 Tests pin this: `tests/generation.test.ts` snapshots the RNG output and a fingerprint of the
-`golden` forest. **If a generator change alters that snapshot, bump the generator version** (for
-example `forest@1.0.0` → `forest@1.1.0`) so old seeds are not silently reinterpreted.
+`golden` forest. **If a change alters what a seed produces, bump the generator version** so old
+seeds are not silently reinterpreted.
+
+The version covers the whole pipeline for a world family: the **planner** (which profiles a seed
+gets) and the **generator** (the world built from them). History:
+
+| Version | Change |
+| --- | --- |
+| `forest@1.0.0` | First forest (Phase 5) |
+| `forest@1.1.0` | Visual profiles (Phase 10). Structure, lighting, fog and physics unchanged for every seed (checked across 500 seeds); only the new visual profile is added, drawn from its own stream `${visualSeed}/style`. |
+
+When adding a choice to the planner, give it its own derived stream so existing draws keep their
+values.
 
 ## What does not reproduce exactly
 

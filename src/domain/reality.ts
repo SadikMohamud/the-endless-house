@@ -8,7 +8,14 @@ import { Seed } from './seed';
 export const WorldType = z.enum(['FOREST']);
 export type WorldType = z.infer<typeof WorldType>;
 
-export const VisualProfileId = z.enum(['NATURAL']);
+export const VisualProfileId = z.enum([
+  'NATURAL',
+  'LOW_POLY',
+  'MONOCHROME',
+  'TWO_BIT',
+  'WIREFRAME',
+]);
+export type VisualProfileId = z.infer<typeof VisualProfileId>;
 export const PhysicsProfileId = z.enum(['EARTH', 'LOW_GRAVITY']);
 export const MovementProfileId = z.enum(['WALK', 'STANDARD']);
 export const TimeProfileId = z.enum(['NORMAL']);

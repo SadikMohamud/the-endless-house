@@ -8,6 +8,7 @@ import { Player, type MoveIntent } from '../runtime/player';
 import type { Stage } from '../runtime/stage';
 import { buildForestColliders, FRAME_POST, yawFacing } from '../world/forest-physics';
 import { crossedFrame } from '../world/frame-crossing';
+import { VISUAL_STYLES, type VisualStyle } from '../visual/styles';
 
 const SHADOW_EXTENT = 45;
 
@@ -20,6 +21,7 @@ export class ForestStage implements Stage {
   private readonly sun: THREE.DirectionalLight;
   private readonly sunDir: THREE.Vector3;
   private lastFeet: { x: number; y: number; z: number };
+  private readonly style: VisualStyle;
   private returned = false;
 
   constructor(
@@ -34,15 +36,21 @@ export class ForestStage implements Stage {
     this.world = new rapier.World(physicsProfile.gravity);
     buildForestColliders(rapier, this.world, forest);
 
-    this.scene.background = new THREE.Color(env.fogColour);
-    this.scene.fog = new THREE.Fog(env.fogColour, env.fogNear, env.fogFar);
+    this.style = VISUAL_STYLES[reality.visualProfile.id];
+    const sky = this.style.atmosphere(env.fogColour);
+    this.scene.background = new THREE.Color(sky);
+    this.scene.fog = new THREE.Fog(sky, env.fogNear, env.fogFar);
 
     this.scene.add(this.buildTerrain(palette.ground ?? '#4B4A3A'));
     this.buildTrees(palette.trunk ?? '#3A332C', palette.foliage ?? '#2F4A36');
     this.buildFrame(dna);
 
     this.scene.add(
-      new THREE.HemisphereLight(env.fogColour, palette.ground ?? '#4B4A3A', light.ambientIntensity),
+      new THREE.HemisphereLight(
+        this.style.light(env.fogColour),
+        this.style.light(palette.ground ?? '#4B4A3A'),
+        light.ambientIntensity,
+      ),
     );
     const el = THREE.MathUtils.degToRad(light.sunElevation);
     const az = THREE.MathUtils.degToRad(light.sunAzimuth);
@@ -51,7 +59,10 @@ export class ForestStage implements Stage {
       Math.sin(el),
       Math.cos(el) * Math.cos(az),
     );
-    this.sun = new THREE.DirectionalLight(light.sunColour, light.sunIntensity * 2.2);
+    this.sun = new THREE.DirectionalLight(
+      this.style.light(light.sunColour),
+      light.sunIntensity * 2.2,
+    );
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     const cam = this.sun.shadow.camera;
@@ -60,6 +71,9 @@ export class ForestStage implements Stage {
     cam.near = 1;
     cam.far = 300;
     this.sun.shadow.bias = -0.0008;
+    // Pushes the lookup along the surface normal: removes striping (acne) on surfaces lit at
+    // grazing angles, which two-tone shading makes very visible.
+    this.sun.shadow.normalBias = 0.06;
     this.scene.add(this.sun, this.sun.target);
 
     const s = forest.spawn;
@@ -121,28 +135,26 @@ export class ForestStage implements Stage {
     const pos = geometry.attributes.position!;
     for (let i = 0; i < pos.count; i++) pos.setY(i, heights[i]!);
     geometry.computeVertexNormals();
-    const mesh = new THREE.Mesh(
-      geometry,
-      new THREE.MeshStandardMaterial({ color: colour, roughness: 1 }),
-    );
+    const mesh = new THREE.Mesh(geometry, this.style.material(colour));
     mesh.receiveShadow = true;
     return mesh;
   }
 
   private buildTrees(trunkColour: string, foliageColour: string): void {
     const trees = this.forest.trees;
-    const trunkGeometry = new THREE.CylinderGeometry(0.7, 1, 1, 7, 1);
+    const sides = this.style.segments ?? 7;
+    const trunkGeometry = new THREE.CylinderGeometry(0.7, 1, 1, sides, 1);
     trunkGeometry.translate(0, 0.5, 0);
-    const crownGeometry = new THREE.ConeGeometry(1, 1, 7, 1);
+    const crownGeometry = new THREE.ConeGeometry(1, 1, sides, 1);
     crownGeometry.translate(0, 0.5, 0);
     const trunks = new THREE.InstancedMesh(
       trunkGeometry,
-      new THREE.MeshStandardMaterial({ color: trunkColour, roughness: 0.92 }),
+      this.style.material(trunkColour),
       trees.length,
     );
     const crowns = new THREE.InstancedMesh(
       crownGeometry,
-      new THREE.MeshStandardMaterial({ color: foliageColour, roughness: 0.9 }),
+      this.style.material(foliageColour),
       trees.length,
     );
     const m = new THREE.Matrix4();
@@ -167,7 +179,7 @@ export class ForestStage implements Stage {
     });
     for (const mesh of [trunks, crowns]) {
       mesh.castShadow = true;
-      mesh.receiveShadow = true;
+      mesh.receiveShadow = mesh === trunks || (this.style.crownsReceiveShadow ?? true);
       mesh.instanceMatrix.needsUpdate = true;
       mesh.computeBoundingSphere();
       this.scene.add(mesh);
@@ -177,7 +189,8 @@ export class ForestStage implements Stage {
   /** The way back: a lone door frame in the House's proportions, attached to nothing. */
   private buildFrame(dna: HouseDNA): void {
     const fr = this.forest.returnFrame;
-    const timber = new THREE.MeshStandardMaterial({ color: dna.palette.door, roughness: 0.6 });
+    // The frame is drawn in the world's style: even the way back belongs to this reality.
+    const timber = this.style.material(dna.palette.door);
     const group = new THREE.Group();
     group.position.set(fr.x, fr.y, fr.z);
     group.rotation.y = yawFacing(fr.facing);

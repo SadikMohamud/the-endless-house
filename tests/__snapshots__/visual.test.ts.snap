@@ -1,0 +1,39 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`planner visual profiles > adding styles did not change existing lighting or fog for a seed 1`] = `
+{
+  "ambientIntensity": 0.98,
+  "id": "OVERCAST",
+  "sunAzimuth": 57.95,
+  "sunColour": "#E4E8E6",
+  "sunElevation": 54.55,
+  "sunIntensity": 0.85,
+}
+`;
+
+exports[`planner visual profiles > adding styles did not change existing lighting or fog for a seed 2`] = `
+{
+  "fogColour": "#B9C4C0",
+  "fogFar": 74.22,
+  "fogNear": 20.44,
+}
+`;
+
+exports[`planner visual profiles > pins lighting and fog for a seed 1`] = `
+{
+  "ambientIntensity": 0.98,
+  "id": "OVERCAST",
+  "sunAzimuth": 57.95,
+  "sunColour": "#E4E8E6",
+  "sunElevation": 54.55,
+  "sunIntensity": 0.85,
+}
+`;
+
+exports[`planner visual profiles > pins lighting and fog for a seed 2`] = `
+{
+  "fogColour": "#B9C4C0",
+  "fogFar": 74.22,
+  "fogNear": 20.44,
+}
+`;

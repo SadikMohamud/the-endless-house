@@ -258,6 +258,20 @@ try {
   check(walked > 3, 'can move through the forest');
   await sleep(1500); // fill the frame-time window with forest frames
   await perf('forest', BUDGET.forest);
+
+  // Every visual reality renders on the real GPU, as real 3D geometry.
+  for (const style of ['NATURAL', 'LOW_POLY', 'MONOCHROME', 'TWO_BIT', 'WIREFRAME']) {
+    await page.goto(`${URL}?world=smoke-forest&visual=${style}&debug`, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.__house?.status !== 'starting', { timeout: 20000 });
+    await page.mouse.click(640, 360);
+    await sleep(1500);
+    const d = await page.evaluate(() => window.__house.diagnostics());
+    check(
+      d.visualProfile === style && d.loadedAssets.triangles > 10_000,
+      `style ${style} renders (${d.loadedAssets.triangles} triangles)`,
+    );
+    await shot(`8-style-${style}`);
+  }
   // Turn round to look back towards the frame.
   for (let i = 0; i < 20; i++) await page.mouse.move(640 + (i + 1) * 70, 360);
   await sleep(300);
